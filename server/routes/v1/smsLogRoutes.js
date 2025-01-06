@@ -52,12 +52,15 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const smsLog = await SmsLog.create(req.body);
+
+    console.log(smsLog)
     
     res.status(201).json({
       success: true,
       data: smsLog
     });
   } catch (error) {
+    console.log(error)
     res.status(500).json({
       success: false,
       message: error.message  
@@ -85,6 +88,7 @@ router.put('/:id', async (req, res) => {
       data: smsLog
     });
   } catch (error) {
+    console.log(error)
     res.status(500).json({
       success: false,
       message: error.message

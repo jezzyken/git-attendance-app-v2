@@ -2,15 +2,13 @@ const mongoose = require('mongoose');
 
 const smsLogSchema = new mongoose.Schema(
   {
-    classSchedule: {
+    classScheduleId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ClassSchedule',
-      required: true,
     },
-    attendance: {
+    attendanceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ClassAttendance',
-      required: true,
     },
     logs: [
       {
