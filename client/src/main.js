@@ -5,10 +5,12 @@ import store from "./store";
 import vuetify from "./plugins/vuetify";
 import "@mdi/font/css/materialdesignicons.css";
 import VueApexCharts from "vue-apexcharts";
+import VueMask from "v-mask";
 
 Vue.config.productionTip = false;
 
 Vue.use(VueApexCharts);
+Vue.use(VueMask);
 Vue.component("apexchart", VueApexCharts);
 
 new Vue({

@@ -12,6 +12,9 @@ const smsLogSchema = new mongoose.Schema(
     },
     logs: [
       {
+        serverMessage: {
+          type: String,
+        },
         student: {
           type: mongoose.Schema.Types.ObjectId,
           ref: 'Student',
@@ -31,15 +34,10 @@ const smsLogSchema = new mongoose.Schema(
         },
         status: {
           type: String,
-          enum: ['sent', 'failed'],
           required: true,
-        },
-        error: {
-          type: String,
         },
         sentAt: {
           type: Date,
-          required: true,
         },
       },
     ],

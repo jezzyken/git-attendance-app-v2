@@ -384,17 +384,19 @@ export default {
       phone: [
         (v) => {
           if (!v) return true;
-          if (v.startsWith("0"))
-            return (
-              /^0\d{10}$/.test(v) ||
-              "Phone number starting with 0 must be 11 digits (e.g., 09123456789)"
-            );
-          if (v.startsWith("+63"))
-            return (
-              /^\+63\d{10}$/.test(v) ||
-              "Phone number starting with +63 must be followed by 10 digits (e.g., +639123456789)"
-            );
-          return "Please enter a valid phone number (09123456789 or +639123456789)";
+          let formattedNumber = v;
+          if (v.startsWith("0")) {
+            formattedNumber = "+63" + v.substring(1);
+          }
+
+          if (!formattedNumber.startsWith("+63")) {
+            return "Please enter a valid phone number starting with 0 or +63";
+          }
+
+          return (
+            /^\+63\d{10}$/.test(formattedNumber) ||
+            "Phone number must have 10 digits after +63 (e.g., +639123456789)"
+          );
         },
       ],
     },
@@ -404,6 +406,7 @@ export default {
     snackbar: false,
     snackbarColor: "",
     snackbarText: "",
+    mask: "+63##########",
   }),
 
   computed: {
@@ -573,6 +576,30 @@ export default {
 
   created() {
     this.loadInitialData();
+  },
+  watch: {
+    "form.parentNo": {
+      handler(newValue) {
+        if (newValue) {
+          let cleanNumber = newValue.replace(/[^\d]/g, "");
+          this.form.parentNo = "+63" + cleanNumber.replace(/^63|^0/, "");
+        }
+      },
+    },
+    "form.phoneNo": {
+      handler(newValue) {
+        if (newValue) {
+          let cleanNumber = newValue.replace(/[^\d]/g, "");
+          this.form.phoneNo = "+63" + cleanNumber.replace(/^63|^0/, "");
+        }
+      },
+    },
+  },
+  rules: {
+    phone: [
+      (v) =>
+        !v || /^\+63\d{10}$/.test(v) || "Please enter a valid phone number",
+    ],
   },
 };
 </script>
