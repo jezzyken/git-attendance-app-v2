@@ -34,7 +34,7 @@ router.post("/", auth, async (req, res) => {
         if (shouldNotify) {
           const message = settings.smsTemplate
             .replace("{studentName}", studentName)
-            .replace("{subject}", schedule.subject.descriptiveTitle)
+            .replace("{subject}", schedule.subject.subjectName)
             .replace("{date}", schedule.selectedDate)
             .replace("{status}", studentStatus);
 
