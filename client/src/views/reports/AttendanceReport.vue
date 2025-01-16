@@ -78,15 +78,16 @@
               @click="fetchAttendanceData"
               :loading="loading"
             >
-              Generate Report
+              search
             </v-btn>
+
             <v-btn
-              color="info"
+              color="success"
               @click="exportToPDF"
-              :disabled="!filteredAttendance.length"
-              class="ml-2"
+              class="px-5 rounded mr-4 ml-2"
             >
-              Export to PDF
+              <v-icon left>mdi-file-download</v-icon>
+              Generate Report
             </v-btn>
           </v-col>
         </v-row>
@@ -102,6 +103,10 @@
         :items-per-page="10"
         class="elevation-1"
       >
+        <template v-slot:item.classSchedule.teacher.user="{ item }">
+          {{ getTeacherFullName(item.classSchedule?.teacher?.user) }}
+        </template>
+
         <template v-slot:item.status="{ item }">
           <v-chip :color="getStatusColor(item.status)" small>
             {{ item.status }}
@@ -145,7 +150,6 @@
       </v-card-actions>
     </v-card>
 
-    <!-- Details Dialog -->
     <v-dialog v-model="detailsDialog" max-width="800px">
       <v-card>
         <v-card-title>
@@ -156,7 +160,32 @@
           </v-btn>
         </v-card-title>
         <v-card-text>
-          <v-simple-table>
+          <v-row>
+            <v-col cols="12" sm="6">
+              <strong>Course:</strong>
+              {{ selectedAttendanceRecord?.classSchedule?.course?.courseName }}
+            </v-col>
+            <v-col cols="12" sm="6">
+              <strong>Subject:</strong>
+              {{
+                selectedAttendanceRecord?.classSchedule?.subject?.subjectName
+              }}
+            </v-col>
+            <v-col cols="12" sm="6">
+              <strong>Teacher:</strong>
+              {{
+                getTeacherFullName(
+                  selectedAttendanceRecord?.classSchedule?.teacher?.user
+                )
+              }}
+            </v-col>
+            <v-col cols="12" sm="6">
+              <strong>Date:</strong>
+              {{ formatDate(selectedAttendanceRecord?.attendanceDate) }}
+            </v-col>
+          </v-row>
+
+          <v-simple-table class="mt-4">
             <template v-slot:default>
               <thead>
                 <tr>
@@ -187,6 +216,14 @@
               </tbody>
             </template>
           </v-simple-table>
+
+          <!-- Add print button -->
+          <v-card-actions>
+            <v-spacer></v-spacer>
+            <v-btn color="primary" @click="printAttendanceDetails">
+              Print Details
+            </v-btn>
+          </v-card-actions>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -197,8 +234,6 @@
 import { mapState, mapActions } from "vuex";
 import moment from "moment";
 import XLSX from "xlsx";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
 
 export default {
   name: "AttendanceReport",
@@ -215,11 +250,13 @@ export default {
       { text: "Date", value: "attendanceDate" },
       { text: "Course", value: "classSchedule.course.courseName" },
       { text: "Subject", value: "classSchedule.subject.subjectName" },
+      { text: "Teacher", value: "classSchedule.teacher.user" },
       { text: "Present", value: "presentCount" },
       { text: "Absent", value: "absentCount" },
       { text: "Late", value: "lateCount" },
       { text: "Actions", value: "actions", sortable: false },
     ],
+    selectedAttendanceRecord: null,
   }),
 
   computed: {
@@ -250,6 +287,13 @@ export default {
       fetchCourses: "courses/fetchCourses",
       fetchSubjects: "subjects/fetchSubjects",
     }),
+
+    getTeacherFullName(user) {
+      console.log({ user });
+      if (!user) return "-";
+      const middleName = user.middleName ? ` ${user.middleName} ` : " ";
+      return `${user.firstName}${middleName}${user.lastName}`;
+    },
 
     async fetchAttendanceData() {
       try {
@@ -289,7 +333,7 @@ export default {
     },
 
     viewAttendanceDetails(item) {
-      console.log(item);
+      this.selectedAttendanceRecord = item;
       this.selectedAttendanceDetails = item.attendanceRecords;
       this.detailsDialog = true;
     },
@@ -307,18 +351,149 @@ export default {
     },
 
     exportToPDF() {
-      const doc = new jsPDF();
-      const data = this.prepareExportData();
+      try {
+        const doc = new jsPDF({
+          orientation: "portrait",
+          unit: "in",
+          format: "a4",
+        });
 
-      doc.autoTable({
-        head: [Object.keys(data[0])],
-        body: data.map(Object.values),
-        startY: 20,
-        margin: { top: 20 },
-        styles: { fontSize: 8 },
-      });
+        const primaryColor = [165, 42, 42];
+        const lightRed = [249, 235, 235];
+        const margin = 0.5;
 
-      doc.save("attendance_report.pdf");
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const availableWidth = pageWidth - margin * 2;
+
+        doc.setFontSize(16);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        const title = "Attendance Report";
+        const titleWidth =
+          (doc.getStringUnitWidth(title) * 16) / doc.internal.scaleFactor;
+        const titleXPosition = (pageWidth - titleWidth) / 2;
+        doc.text(title, titleXPosition, margin + 0.3);
+
+        const tableData = this.filteredAttendance.map((record) => [
+          this.formatDate(record.attendanceDate),
+          record.classSchedule.course.courseName,
+          record.classSchedule.subject?.subjectName || "-",
+          this.getTeacherFullName(record.classSchedule.teacher?.user),
+          record.presentCount.toString(),
+          record.absentCount.toString(),
+          record.lateCount.toString(),
+        ]);
+
+        doc.autoTable({
+          startY: margin + 0.6,
+          head: [
+            [
+              "Date",
+              "Course",
+              "Subject",
+              "Teacher",
+              "Present",
+              "Absent",
+              "Late",
+            ],
+          ],
+          body: tableData,
+          styles: {
+            fontSize: 8,
+            cellPadding: 0.05,
+            halign: "left",
+          },
+          headStyles: {
+            fillColor: primaryColor,
+            textColor: 255,
+            fontSize: 9,
+            fontStyle: "bold",
+            halign: "center",
+          },
+          alternateRowStyles: {
+            fillColor: lightRed,
+          },
+          columnStyles: {
+            0: { cellWidth: availableWidth * 0.15 },
+            1: { cellWidth: availableWidth * 0.2 },
+            2: { cellWidth: availableWidth * 0.2 },
+            3: { cellWidth: availableWidth * 0.2 },
+            4: { cellWidth: availableWidth * 0.08 },
+            5: { cellWidth: availableWidth * 0.08 },
+            6: { cellWidth: availableWidth * 0.09 },
+          },
+          margin: {
+            left: margin,
+            right: margin,
+            top: margin,
+            bottom: margin,
+          },
+          tableWidth: availableWidth,
+          didDrawPage: (data) => {
+            doc.setFontSize(16);
+            doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+            doc.text(title, titleXPosition, margin + 0.3);
+          },
+        });
+
+        doc.setFontSize(8);
+        let filterText = "Filters: ";
+        try {
+          if (this.selectedCourse) {
+            const courseName = this.courses.find(
+              (c) => c._id === this.selectedCourse
+            )?.courseName;
+            filterText += `Course: ${courseName || ""}, `;
+          }
+          if (this.selectedSubject) {
+            const subjectName = this.subjects.find(
+              (s) => s._id === this.selectedSubject
+            )?.subjectName;
+            filterText += `Subject: ${subjectName || ""}, `;
+          }
+          if (this.dateRange.length === 2) {
+            filterText += `Date Range: ${this.dateRange.join(" - ")}, `;
+          }
+          filterText = filterText.endsWith(", ")
+            ? filterText.slice(0, -2)
+            : filterText;
+          if (filterText === "Filters: ") filterText += "None";
+        } catch (err) {
+          console.warn("Error processing filters:", err);
+          filterText += "Error processing filters";
+        }
+
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(8);
+          doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+
+          const timestamp = moment().format("MM/DD/YYYY HH:mm:ss");
+          doc.text(
+            filterText,
+            margin,
+            doc.internal.pageSize.height - margin - 0.2
+          );
+          doc.text(
+            `Generated on: ${timestamp}`,
+            margin,
+            doc.internal.pageSize.height - margin
+          );
+          doc.text(
+            `Page ${i} of ${pageCount}`,
+            doc.internal.pageSize.width - margin - 1,
+            doc.internal.pageSize.height - margin
+          );
+        }
+
+        const fileName = `attendance_report_${moment().format(
+          "YYYY-MM-DD_HH-mm"
+        )}.pdf`;
+        doc.save(fileName);
+      } catch (error) {
+        console.error("PDF Generation Error:", error);
+        this.$emit("show-error", "Failed to generate PDF report");
+      }
     },
 
     prepareExportData() {
@@ -326,15 +501,102 @@ export default {
         Date: this.formatDate(record.attendanceDate),
         Course: record.classSchedule.course.courseName,
         Subject: record.classSchedule.subject?.subjectName,
+        Teacher: this.getTeacherFullName(record.classSchedule.teacher?.user),
         Present: record.presentCount,
         Absent: record.absentCount,
         Late: record.lateCount,
       }));
     },
+
+    printAttendanceDetails() {
+      const doc = new jsPDF();
+      const primaryColor = [165, 42, 42];
+      const lightRed = [249, 235, 235];
+
+      doc.setFontSize(16);
+      doc.text("Attendance Details", 14, 15);
+
+      doc.setFontSize(12);
+      const headerInfo = [
+        `Course: ${this.selectedAttendanceRecord?.classSchedule?.course?.courseName}`,
+        `Subject: ${this.selectedAttendanceRecord?.classSchedule?.subject?.subjectName}`,
+        `Teacher: ${this.getTeacherFullName(
+          this.selectedAttendanceRecord?.classSchedule?.teacher?.user
+        )}`,
+        `Date: ${this.formatDate(
+          this.selectedAttendanceRecord?.attendanceDate
+        )}`,
+      ];
+
+      headerInfo.forEach((text, index) => {
+        doc.text(text, 14, 25 + index * 7);
+      });
+
+      const tableData = this.selectedAttendanceDetails.map((record) => [
+        `${record.student.user.firstName} ${record.student.user.lastName}`,
+        record.status,
+        this.formatTime(record.timeRecorded),
+        record.notes || "-",
+      ]);
+
+      doc.autoTable({
+        startY: 52,
+        head: [["Student Name", "Status", "Time", "Notes"]],
+        body: tableData,
+        styles: {
+          fontSize: 10,
+          textColor: [50, 50, 50],
+        },
+        headStyles: {
+          fillColor: primaryColor,
+          textColor: 255,
+          fontSize: 11,
+          fontStyle: "bold",
+        },
+        alternateRowStyles: {
+          fillColor: lightRed,
+        },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: "auto" },
+        },
+        margin: { top: 20 },
+      });
+
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        const timestamp = moment().format("MMMM DD, YYYY HH:mm:ss");
+        doc.text(
+          `Generated on: ${timestamp}`,
+          14,
+          doc.internal.pageSize.height - 10
+        );
+        doc.text(
+          `Page ${i} of ${pageCount}`,
+          doc.internal.pageSize.width - 30,
+          doc.internal.pageSize.height - 10
+        );
+      }
+
+      doc.save(
+        `attendance_details_${this.formatDate(
+          this.selectedAttendanceRecord?.attendanceDate
+        )}.pdf`
+      );
+    },
   },
 
   async created() {
-    await Promise.all([this.fetchCourses(), this.fetchSubjects()]);
+    await Promise.all([
+      this.fetchCourses(),
+      this.fetchSubjects(),
+      this.fetchAttendance(),
+    ]);
   },
 };
 </script>

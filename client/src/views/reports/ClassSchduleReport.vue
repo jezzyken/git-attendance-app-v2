@@ -243,6 +243,8 @@
 <script>
 import { mapState, mapActions } from "vuex";
 import moment from "moment";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 export default {
   name: "ReportView",
@@ -368,66 +370,108 @@ export default {
       try {
         this.downloading = true;
 
+        const doc = new jsPDF({
+          orientation: "portrait",
+          unit: "in",
+          format: "a4",
+        });
+
+        const primaryColor = [165, 42, 42]; 
+        const lightRed = [249, 235, 235];
+        const margin = 0.5;
+
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const availableWidth = pageWidth - margin * 2;
+
+        doc.setFontSize(16);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        const title = "Student List";
+        const titleWidth =
+          (doc.getStringUnitWidth(title) * 16) / doc.internal.scaleFactor;
+        const titleXPosition = (pageWidth - titleWidth) / 2;
+        doc.text(title, titleXPosition, margin + 0.3);
+
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
         const headerInfo = [
-          { text: "Student List", style: "header" },
-          {
-            text: [
-              `Course: ${item.course?.courseName || "N/A"}\n`,
-              `Subject: ${item.subject?.subjectName || "N/A"}\n`,
-              `Teacher: ${this.getTeacherName(item.teacher)}\n`,
-              `Schedule: ${item.weekDays.join(", ")} | ${this.formatTime(
-                item.startTime
-              )} - ${this.formatTime(item.endTime)}\n`,
-            ],
-            style: "subheader",
-            margin: [0, 0, 0, 10],
-          },
+          `Course: ${item.course?.courseName || "N/A"}`,
+          `Subject: ${item.subject?.subjectName || "N/A"}`,
+          `Teacher: ${this.getTeacherName(item.teacher)}`,
+          `Schedule: ${item.weekDays.join(", ")} | ${this.formatTime(
+            item.startTime
+          )} - ${this.formatTime(item.endTime)}`,
         ];
 
+        headerInfo.forEach((info, index) => {
+          doc.text(info, margin, margin + 0.6 + index * 0.2);
+        });
+
         const studentData =
-          item.students?.map((student, index) => ({
-            no: index + 1,
-            id: student.studentId || "N/A",
-            name: this.getStudentName(student),
-          })) || [];
+          item.students?.map((student, index) => [
+            (index + 1).toString(),
+            student.studentId || "N/A",
+            this.getStudentName(student),
+          ]) || [];
 
-        const docDefinition = {
-          content: [
-            ...headerInfo,
-            {
-              table: {
-                headerRows: 1,
-                widths: ["auto", "auto", "*"],
-                body: [
-                  ["No.", "Student ID", "Student Name"],
-                  ...studentData.map((student) => [
-                    student.no,
-                    student.id,
-                    student.name,
-                  ]),
-                ],
-              },
-            },
-          ],
+        doc.autoTable({
+          startY: margin + 1.5,
+          head: [["No.", "Student ID", "Student Name"]],
+          body: studentData,
           styles: {
-            header: {
-              fontSize: 12,
-              bold: true,
-              margin: [0, 0, 0, 5],
-            },
-            subheader: {
-              fontSize: 11,
-              margin: [0, 0, 0, 10],
-            },
+            fontSize: 9,
+            cellPadding: 0.05,
+            halign: "left",
           },
-        };
+          headStyles: {
+            fillColor: primaryColor,
+            textColor: 255,
+            fontSize: 10,
+            fontStyle: "bold",
+            halign: "center",
+          },
+          alternateRowStyles: {
+            fillColor: lightRed,
+          },
+          columnStyles: {
+            0: { cellWidth: availableWidth * 0.1 }, 
+            1: { cellWidth: availableWidth * 0.3 }, 
+            2: { cellWidth: availableWidth * 0.6 }, 
+          },
+          margin: {
+            left: margin,
+            right: margin,
+            top: margin,
+            bottom: margin,
+          },
+          tableWidth: availableWidth,
+        });
 
-        const filename =
-          `student-list-${item.course?.courseName}-${item.subject?.subjectName}`
-            .toLowerCase()
-            .replace(/\s+/g, "-");
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(8);
+          doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
 
-        window.pdfMake.createPdf(docDefinition).download(`${filename}.pdf`);
+          const timestamp = moment().format("MM/DD/YYYY HH:mm:ss");
+          doc.text(
+            `Generated on: ${timestamp}`,
+            margin,
+            doc.internal.pageSize.height - margin
+          );
+          doc.text(
+            `Page ${i} of ${pageCount}`,
+            doc.internal.pageSize.width - margin - 1,
+            doc.internal.pageSize.height - margin
+          );
+        }
+
+        const filename = `student-list-${item.course?.courseName}-${
+          item.subject?.subjectName
+        }-${moment().format("YYYY-MM-DD_HH-mm")}`
+          .toLowerCase()
+          .replace(/\s+/g, "-");
+
+        doc.save(`${filename}.pdf`);
       } catch (error) {
         console.error("Error generating PDF:", error);
       } finally {
@@ -435,7 +479,7 @@ export default {
       }
     },
 
-    downloadStudentListCSV(item) {
+    async downloadStudentListCSV(item) {
       try {
         this.downloading = true;
 

@@ -124,19 +124,45 @@ const createAttendance = async (data) => {
 };
 
 const getAllAttendance = async (query = {}) => {
-  const attendance = await ClassAttendance.find(query)
+  const { startDate, endDate, course, subject } = query;
+  
+  const queryConditions = {};
+  
+  if (startDate && endDate) {
+    queryConditions.attendanceDate = {
+      $gte: startDate,
+      $lte: endDate
+    };
+  }
+
+  const attendance = await ClassAttendance.find(queryConditions)
     .populate({
       path: "classSchedule",
-      populate: [{ path: "subject" }, { path: "course" }],
+      match: course || subject ? {
+        ...(course && { course }),
+        ...(subject && { subject })
+      } : {},
+      populate: [
+        { 
+          path: "teacher",
+          populate: {
+            path: "user",
+            select: "firstName lastName middleName"
+          }
+        },
+        { path: "subject" }, 
+        { path: "course" }
+      ],
     })
     .populate({
       path: "attendanceRecords.student",
       populate: {
         path: "user",
-        select: "firstName lastName middleName",
-      },
+        select: "firstName lastName middleName"
+      }
     })
-    .sort("-attendanceDate");
+    .sort("-attendanceDate")
+    .then(results => results.filter(item => item.classSchedule));
 
   return attendance;
 };
@@ -176,7 +202,7 @@ const getAttendanceBySchedule = async (classScheduleId) => {
     })
     .sort("-attendanceDate");
 
-  console.log(attendance)
+  console.log(attendance);
 
   return attendance;
 };

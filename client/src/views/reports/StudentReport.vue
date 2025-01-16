@@ -153,6 +153,9 @@
 
 <script>
 import { mapState, mapActions } from "vuex";
+import moment from "moment";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 export default {
   name: "StudentReportView",
@@ -237,30 +240,157 @@ export default {
     ...mapActions("students", ["fetchStudents"]),
     ...mapActions("courses", ["fetchCourses"]),
 
-    async generateReport() {
-      this.loadingReport = true;
+    generateReport() {
+  try {
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "in",
+      format: "a4",
+    });
+
+    const primaryColor = [165, 42, 42];
+    const lightRed = [249, 235, 235];
+    const margin = 0.5;
+
+    if (!this.filteredStudents || this.filteredStudents.length === 0) {
+      throw new Error("No student data available to generate report");
+    }
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const availableWidth = pageWidth - (margin * 2);
+
+    doc.setFontSize(16);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    const title = "Students Report";
+    const titleWidth = (doc.getStringUnitWidth(title) * 16) / doc.internal.scaleFactor;
+    const titleXPosition = (pageWidth - titleWidth) / 2;
+    doc.text(title, titleXPosition, margin + 0.3);
+
+    const tableData = this.filteredStudents.map((student, index) => {
       try {
-        // Format the data for report
-        const reportData = this.filteredStudents.map((student) => ({
-          "Student ID": student.studentId,
-          Name: `${student.user.lastName}, ${student.user.firstName} ${
+        return [
+          student.studentId,
+          `${student.user.lastName}, ${student.user.firstName} ${
             student.user.middleName || ""
-          }`,
-          Course: student.course.courseName,
-          Level: student.level,
-          Section: student.section,
-          Status: student.user.isActive ? "Active" : "Inactive",
-        }));
-
-        // Add export logic here
-
-        this.showSnackbarMessage("Report generated successfully!", "success");
-      } catch (error) {
-        this.showSnackbarMessage("Failed to generate report", "error");
-      } finally {
-        this.loadingReport = false;
+          }`.trim(),
+          student.course.courseName,
+          student.level.toString(),
+          student.section,
+          student.user.isActive ? "Active" : "Inactive",
+        ];
+      } catch (err) {
+        throw new Error(
+          `Error processing student data at index ${index}: ${err.message}`
+        );
       }
-    },
+    });
+
+    doc.autoTable({
+      head: [["Student ID", "Name", "Course", "Level", "Section", "Status"]],
+      body: tableData,
+      styles: {
+        fontSize: 8,
+        cellPadding: 0.05,
+        halign: 'left',
+        minCellWidth: 0.5
+      },
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: 255,
+        fontSize: 9,
+        fontStyle: 'bold',
+        halign: 'left'
+      },
+      alternateRowStyles: {
+        fillColor: lightRed,
+      },
+      columnStyles: {
+        0: { cellWidth: availableWidth * 0.10 },  
+        1: { cellWidth: availableWidth * 0.25 },  
+        2: { cellWidth: availableWidth * 0.35 }, 
+        3: { cellWidth: availableWidth * 0.10 },  
+        4: { cellWidth: availableWidth * 0.10 }, 
+        5: { cellWidth: availableWidth * 0.10 }  
+      },
+      margin: {
+        left: margin,
+        right: margin,
+        top: margin,
+        bottom: margin
+      },
+      tableWidth: pageWidth - (margin * 2),
+      horizontalPageBreak: true,
+      horizontalPageBreakRepeat: true,
+      didDrawPage: (data) => {
+        doc.setFontSize(16);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text(title, titleXPosition, margin + 0.3);
+      }
+    });
+
+    doc.setFontSize(8);
+    let filterText = "Filters: ";
+    try {
+      if (this.filters.course) {
+        const courseName = this.courses.find(
+          (c) => c._id === this.filters.course
+        )?.courseName;
+        filterText += `Course: ${courseName || ""}, `;
+      }
+      if (this.filters.level) {
+        filterText += `Level: ${this.filters.level}, `;
+      }
+      if (this.filters.section) {
+        filterText += `Section: ${this.filters.section}, `;
+      }
+      filterText = filterText.endsWith(", ")
+        ? filterText.slice(0, -2)
+        : filterText;
+      if (filterText === "Filters: ") filterText += "None";
+    } catch (err) {
+      console.warn("Error processing filters:", err);
+      filterText += "Error processing filters";
+    }
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+
+      const timestamp = moment().format("MM/DD/YYYY HH:mm:ss");
+      doc.text(
+        filterText,
+        margin,
+        doc.internal.pageSize.height - margin - 0.2
+      );
+      doc.text(
+        `Generated on: ${timestamp}`,
+        margin,
+        doc.internal.pageSize.height - margin
+      );
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        doc.internal.pageSize.width - margin - 1,
+        doc.internal.pageSize.height - margin
+      );
+    }
+
+    const fileName = `student_report_${moment().format(
+      "YYYY-MM-DD_HH-mm"
+    )}.pdf`;
+    doc.save(fileName);
+    this.showSnackbarMessage("Report generated successfully!", "success");
+  } catch (error) {
+    console.error("PDF Generation Error:", error);
+    this.showSnackbarMessage(
+      `Failed to generate report: ${
+        error.message || "Unknown error occurred"
+      }`,
+      "error"
+    );
+  }
+},
 
     showSnackbarMessage(text, color) {
       this.snackbarText = text;

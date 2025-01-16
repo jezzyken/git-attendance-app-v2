@@ -122,6 +122,9 @@
 
 <script>
 import { mapState, mapActions } from "vuex";
+import moment from "moment";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 export default {
   name: "TeacherReportView",
@@ -190,16 +193,112 @@ export default {
       return colors[status] || "grey";
     },
 
-    async generateReport() {
-      this.loading = true;
+    generateReport() {
+  try {
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "in",
+      format: "a4",
+    });
+
+    const primaryColor = [165, 42, 42];
+    const lightRed = [249, 235, 235];
+    const margin = 0.5;
+
+    doc.setFontSize(16);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    const title = "Teachers Report";
+    const titleWidth =
+      (doc.getStringUnitWidth(title) * 16) / doc.internal.scaleFactor;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const titleXPosition = (pageWidth - titleWidth) / 2;
+    doc.text(title, titleXPosition, margin + 0.3);
+
+    if (!this.teachers || this.teachers.length === 0) {
+      throw new Error('No teacher data available to generate report');
+    }
+
+    const tableData = this.teachers.map((teacher) => {
       try {
-        this.showSnackbarMessage("Report generated successfully!", "success");
-      } catch (error) {
-        this.showSnackbarMessage("Failed to generate report", "error");
-      } finally {
-        this.loading = false;
+        return [
+          teacher.teacherId,
+          `${teacher.user.firstName} ${teacher.user.middleName || ""} ${
+            teacher.user.lastName
+          }`,
+          teacher.department.name,
+          teacher.user.email || "-",
+          teacher.user.phoneNo || "-",
+          moment(teacher.employmentDate).format("MM/DD/YYYY"),
+        ];
+      } catch (err) {
+        throw new Error(`Error processing teacher data: ${err.message}`);
       }
-    },
+    });
+
+    doc.autoTable({
+      startY: margin + 0.6,
+      head: [["ID", "Name", "Department", "Email", "Phone", "Employment"]],
+      body: tableData,
+      styles: {
+        fontSize: 8,
+        cellPadding: 0.05,
+      },
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: 255,
+        fontSize: 9,
+        fontStyle: "bold",
+      },
+      alternateRowStyles: {
+        fillColor: lightRed,
+      },
+      columnStyles: {
+        0: { cellWidth: 0.5 },
+        1: { cellWidth: 2 },
+        2: { cellWidth: 1 },
+        3: { cellWidth: 1.5 },
+        4: { cellWidth: 1 },
+        5: { cellWidth: 1 },
+      },
+      margin: {
+        top: margin,
+        right: margin,
+        bottom: margin,
+        left: margin,
+      },
+      tableWidth: "auto",
+    });
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      const timestamp = moment().format("MM/DD/YYYY HH:mm:ss");
+      doc.text(
+        `Generated on: ${timestamp}`,
+        margin,
+        doc.internal.pageSize.height - margin
+      );
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        doc.internal.pageSize.width - margin - 1,
+        doc.internal.pageSize.height - margin
+      );
+    }
+
+    const filename = `teachers_report_${moment().format('YYYY-MM-DD_HH-mm')}.pdf`;
+    doc.save(filename);
+    this.showSnackbarMessage("Report generated successfully!", "success");
+
+  } catch (error) {
+    console.error('PDF Generation Error:', error);
+    this.showSnackbarMessage(
+      `Failed to generate report: ${error.message || 'Unknown error occurred'}`, 
+      "error"
+    );
+  }
+},
 
     showSnackbarMessage(text, color) {
       this.snackbarText = text;
