@@ -233,6 +233,8 @@
 <script>
 import { mapState, mapActions } from "vuex";
 import moment from "moment";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 import XLSX from "xlsx";
 
 export default {
