@@ -8,7 +8,6 @@
           <v-icon>mdi-close</v-icon>
         </v-btn>
       </v-card-title>
-
       <v-card-text>
         <v-data-table
           :headers="headers"

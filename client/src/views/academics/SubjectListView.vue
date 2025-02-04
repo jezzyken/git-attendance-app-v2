@@ -7,7 +7,7 @@
         <v-spacer></v-spacer>
 
         <v-text-field
-          v-model="options.search"
+          v-model="search"
           prepend-inner-icon="mdi-magnify"
           label="Search subjects..."
           single-line
@@ -16,7 +16,6 @@
           dense
           class="mr-4"
           style="max-width: 300px"
-          @keyup.enter="handleSearch"
         ></v-text-field>
 
         <v-btn
@@ -34,13 +33,9 @@
         :headers="headers"
         :items="subjects"
         :loading="loading"
-        :options.sync="options"
-        :server-items-length="totalSubjects"
-        :footer-props="{
-          'items-per-page-options': [5, 10, 25, 50],
-          showFirstLastPage: true,
-        }"
+        :search="search"
         class="elevation-1"
+        :custom-filter="customFilter"
       >
         <template v-slot:item.course="{ item }">
           <v-chip
@@ -220,11 +215,7 @@ export default {
 
   data: () => ({
     valid: false,
-    options: {
-      page: 1,
-      itemsPerPage: 10,
-      search: "",
-    },
+    search: "",
     createDialog: false,
     deleteDialog: false,
     subjectToDelete: null,
@@ -245,12 +236,12 @@ export default {
       ],
       catNo: [(v) => !!v || "CAT No is required"],
       academicYear: [(v) => !!v || "Academic Year is required"],
-      semester: [(v) => !!v || "Semester Year is required"]
+      semester: [(v) => !!v || "Semester Year is required"],
     },
     headers: [
       { text: "Descriptive Title", align: "start", value: "subjectName" },
       { text: "CAT No", align: "start", value: "catNo" },
-      { text: "Semeester", align: "start", value: "semester" },
+      { text: "Semester", align: "start", value: "semester" },
       { text: "Academic Year", align: "start", value: "academicYear" },
       { text: "Courses", align: "start", value: "course" },
       { text: "Actions", value: "actions", sortable: false, align: "end" },
@@ -279,6 +270,26 @@ export default {
       "deleteSubject",
     ]),
     ...mapActions("courses", ["fetchCourses"]),
+
+    customFilter(value, search, item) {
+      if (!search) return true;
+
+      search = search.toString().toLowerCase();
+      if (item.subjectName?.toLowerCase().includes(search)) return true;
+      if (item.catNo?.toLowerCase().includes(search)) return true;
+      if (item.semester?.toLowerCase().includes(search)) return true;
+      if (item.academicYear?.toLowerCase().includes(search)) return true;
+      if (
+        item.course?.some(
+          (course) =>
+            course.courseCode?.toLowerCase().includes(search) ||
+            course.courseName?.toLowerCase().includes(search)
+        )
+      )
+        return true;
+
+      return false;
+    },
 
     async loadCourseOptions() {
       try {
@@ -402,11 +413,6 @@ export default {
       this.snackbarText = message;
       this.snackbarColor = color;
       this.showSnackbar = true;
-    },
-
-    async handleSearch() {
-      this.options.page = 1;
-      await this.fetchSubjects();
     },
   },
 

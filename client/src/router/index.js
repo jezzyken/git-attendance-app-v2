@@ -56,6 +56,16 @@ const routes = [
         component: () => import("@/views/academics/ClassScheduleView.vue"),
       },
       {
+        path: '/academics/schedules/create',
+        name: 'CreateSchedule',
+        component: () => import('@/views/academics/ScheduleForm.vue')
+      },
+      {
+        path: '/academics/schedules/edit/:id',
+        name: 'EditSchedule',
+        component: () => import('@/views/academics/ScheduleForm.vue')
+      },
+      {
         path: "/students",
         name: "Students",
         component: () => import("@/views/users/StudentListView.vue"),

@@ -3,7 +3,7 @@
     <v-card class="my-4" elevation="2">
       <v-card-title class="d-flex align-center py-4">
         <v-icon large color="#d2691e" class="mr-3">mdi-calendar-clock</v-icon>
-        <span class="text-h5">Class Schedule Management</span>
+        <span class="text-h5">Class Schedule Managementxx</span>
         <v-spacer></v-spacer>
 
         <v-text-field
@@ -21,7 +21,7 @@
         <v-btn
           color="#d2691e"
           dark
-          @click="openCreateDialog"
+           @click="$router.push('/academics/schedules/create')"
           class="px-5 rounded"
         >
           <v-icon left>mdi-plus</v-icon>
@@ -35,6 +35,7 @@
         :loading="loading"
         :search="search"
         class="elevation-1"
+        :custom-filter="customFilter"
       >
         <template v-slot:item.teacher="{ item }">
           {{ item.teacher ? getTeacherName(item.teacher) : "Unknown Teacher" }}
@@ -452,6 +453,36 @@ export default {
     ...mapActions("teachers", ["fetchTeachers"]),
     ...mapActions("students", ["fetchStudents"]),
 
+    customFilter(value, search, item) {
+      if (!search || !item) return true;
+
+      search = search.toString().toLowerCase();
+
+      const courseMatch = (item.course?.courseName || "")
+        .toLowerCase()
+        .includes(search);
+
+      const subjectMatch = (item.subject?.subjectName || "")
+        .toLowerCase()
+        .includes(search);
+
+      const sectionMatch = (item.section || "").toLowerCase().includes(search);
+
+      const teacherMatch =
+        item.teacher?.user &&
+        ((item.teacher.user.firstName || "").toLowerCase().includes(search) ||
+          (item.teacher.user.lastName || "").toLowerCase().includes(search) ||
+          (item.teacher.user.middleName || "").toLowerCase().includes(search));
+
+      const daysMatch =
+        Array.isArray(item.weekDays) &&
+        item.weekDays.some((day) => day.toLowerCase().includes(search));
+
+      return (
+        courseMatch || subjectMatch || sectionMatch || teacherMatch || daysMatch
+      );
+    },
+
     openStudentListDialog(schedule) {
       this.selectedSchedule = schedule;
       this.studentListDialog = true;
@@ -544,20 +575,21 @@ export default {
     },
 
     editSchedule(item) {
-      console.log(item);
-      this.editMode = true;
-      this.form = {
-        _id: item._id,
-        course: item.course?._id || null,
-        subject: item.subject?._id || null,
-        section: item.section || "",
-        teacher: item.teacher?._id || null,
-        weekDays: [...(item.weekDays || [])],
-        startTime: item.startTime || null,
-        endTime: item.endTime || null,
-        students: item.students?.map((student) => student._id) || [],
-      };
-      this.dialog = true;
+      this.$router.push(`/academics/schedules/edit/${item._id}`);
+      // console.log(item);
+      // this.editMode = true;
+      // this.form = {
+      //   _id: item._id,
+      //   course: item.course?._id || null,
+      //   subject: item.subject?._id || null,
+      //   section: item.section || "",
+      //   teacher: item.teacher?._id || null,
+      //   weekDays: [...(item.weekDays || [])],
+      //   startTime: item.startTime || null,
+      //   endTime: item.endTime || null,
+      //   students: item.students?.map((student) => student._id) || [],
+      // };
+      // this.dialog = true;
     },
 
     confirmDelete(item) {

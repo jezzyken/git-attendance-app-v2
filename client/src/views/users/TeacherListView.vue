@@ -6,8 +6,10 @@
         <span class="text-h5">Teacher Management</span>
         <v-spacer></v-spacer>
 
+        <!-- <pre>{{ teachers }}</pre>   -->
+
         <v-text-field
-          v-model="options.search"
+          v-model="search"
           prepend-inner-icon="mdi-magnify"
           label="Search teachers..."
           single-line
@@ -16,7 +18,6 @@
           dense
           class="mr-4"
           style="max-width: 300px"
-          @keyup.enter="handleSearch"
         ></v-text-field>
 
         <v-btn
@@ -34,12 +35,8 @@
         :headers="headers"
         :items="teachers"
         :loading="loading"
-        :options.sync="options"
-        :server-items-length="totalTeachers"
-        :footer-props="{
-          'items-per-page-options': [5, 10, 25, 50],
-          showFirstLastPage: true,
-        }"
+        :search="search"
+        :custom-filter="customFilter"
         class="elevation-1"
       >
         <template v-slot:item.select="{ item }">
@@ -480,6 +477,7 @@ export default {
     currentStep: 1,
     loginValid: false,
     personalValid: false,
+    search: "",
     options: {
       page: 1,
       itemsPerPage: 10,
@@ -593,6 +591,27 @@ export default {
       return date ? moment(date).format("YYYY-MM-DD") : "N/A";
     },
 
+    customFilter(value, search, item) {
+      if (!search || !item) return true;
+
+      search = search.toString().toLowerCase();
+
+      // Basic fields check with null checks
+      const basicFieldsMatch =
+        (item.teacherId?.toString() || "").toLowerCase().includes(search) ||
+        (item.user?.firstName?.toLowerCase() || "").includes(search) ||
+        (item.user?.lastName?.toLowerCase() || "").includes(search) ||
+        (item.user?.middleName?.toLowerCase() || "").includes(search);
+
+      // Check subjects array with null checks
+      const subjectsMatch =
+        Array.isArray(item.subjects) &&
+        item.subjects.some((subject) =>
+          (subject?.subjectName?.toLowerCase() || "").includes(search)
+        );
+
+      return basicFieldsMatch || subjectsMatch;
+    },
     resetForm() {
       this.selectedUser = null;
       this.selectedSubjects = [];
@@ -730,11 +749,6 @@ export default {
       this.snackbarText = text;
       this.snackbarColor = color;
       this.snackbar = true;
-    },
-
-    async handleSearch() {
-      this.options.page = 1;
-      await this.fetchTeachers();
     },
 
     async loadInitialData() {
