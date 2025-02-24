@@ -499,7 +499,7 @@ export default {
             this.showSnackbar("Schedule created successfully!", "success");
           }
 
-          this.$router.push("/schedules");
+          this.$router.push("/academics/schedules");
         } catch (error) {
           this.showSnackbar(
             error.response?.data?.message || "An error occurred!",
